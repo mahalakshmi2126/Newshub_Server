@@ -92,53 +92,6 @@ const fetchTopNews = async (req, res) => {
   }
 };
 
-export default fetchTopNews;
-
-// const fetchMarketData = async (req, res) => {
-
-//   try {
-//     const apikey = process.env.TWELVE_DATA_API_KEY;
-
-//     if (!apikey) {
-//       return res.status(401).json({ error: 'API key not set in .env file' });
-//     }
-
-//     const symbols = ['USD/INR', 'XAU/USD', 'XAG/USD', 'GBP/USD', 'AAPL', 'MSFT'];
-
-//     const requests = symbols.map((symbol) =>
-//       axios.get('https://api.twelvedata.com/quote', {
-//         params: { symbol, apikey },
-//       })
-//     );
-
-//     const responses = await Promise.all(requests);
-
-//     const data = responses.map((r) => {
-//       const price = parseFloat(r.data.close);
-//       const percent = parseFloat(r.data.percent_change);
-
-//       return {
-//         symbol: r.data.symbol,
-//         name: r.data.name,
-//         price: isNaN(price) ? null : price.toFixed(2),
-//         percent_change: isNaN(percent) ? null : percent.toFixed(2),
-//         is_market_open: r.data.is_market_open,
-//       };
-//     });
-
-//     // Remove any null/invalid entries
-//     const cleanData = data.filter(item => item.price && item.percent_change);
-
-//     res.json(cleanData);
-//   } catch (err) {
-//     console.error('❌ Error:', err.message);
-//     if (err.response?.data) {
-//       console.error('🔴 API Error:', err.response.data);
-//     }
-//     res.status(500).json({ error: 'Failed to fetch market data' });
-//   }
-// };
-
 const fetchMarketData = async (req, res) => {
   try {
     const rapidKey = process.env.RAPIDAPI_KEY;
