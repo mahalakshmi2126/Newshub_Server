@@ -18,8 +18,9 @@ import {
   getFilteredNews,
   getBreakingNews,
   searchNews,
-  renderArticlePreview,
-  getArticlePreviewJSON
+  serveOGPreviewPage
+  // renderArticlePreview,
+  // getArticlePreviewJSON
   // translateNews
 } from '../controllers/newsController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
@@ -45,7 +46,8 @@ router.get('/pending-requests', authenticate, getPendingRequests);
 router.delete('/reporter/:id', authenticate, deleteReporter);
 // router.post('/:id/translate', authenticate, translateNews);
 router.get('/search', searchNews);
-router.get('/article-preview/:id', renderArticlePreview);
-// JSON API version
-router.get('/article-preview/:id/json', getArticlePreviewJSON);
+// router.get('/article-preview/:id', renderArticlePreview);
+// // JSON API version
+// router.get('/article-preview/:id/json', getArticlePreviewJSON);
+router.get('/share/:id', serveOGPreviewPage);
 export default router;

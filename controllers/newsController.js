@@ -421,59 +421,95 @@ export const searchNews = async (req, res) => {
   }
 };
 
-// For share preview (HTML)
-export const renderArticlePreview = async (req, res) => {
-  try {
-    const article = await News.findById(req.params.id);
-    if (!article) return res.status(404).send('Article not found');
+// // For share preview (HTML)
+// export const renderArticlePreview = async (req, res) => {
+//   try {
+//     const article = await News.findById(req.params.id);
+//     if (!article) return res.status(404).send('Article not found');
 
-    const image = article.media?.[0] || 'https://placehold.co/600x400?text=No+Image';
-    const title = article.title || 'Untitled Article';
-    const description = article.content?.substring(0, 150) || 'Read latest article on NewsHub.';
+//     const image = article.media?.[0] || 'https://placehold.co/600x400?text=No+Image';
+//     const title = article.title || 'Untitled Article';
+//     const description = article.content?.substring(0, 150) || 'Read latest article on NewsHub.';
 
-    res.setHeader('Content-Type', 'text/html');
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta property="og:title" content="${title}" />
-          <meta property="og:description" content="${description}" />
-          <meta property="og:image" content="${image}" />
-          <meta property="og:type" content="article" />
-          <meta property="og:url" content="https://news-server-49oh.onrender.com/api/news/article-preview/${article._id}" />
-          <title>${title}</title>
-        </head>
-        <body>
-          <script>
-            window.location.href = 'https://news-client-pearl.vercel.app/article-reading-view?id=${article._id}';
-          </script>
-        </body>
-      </html>
-    `);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
-  }
-};
+//     res.setHeader('Content-Type', 'text/html');
+//     res.send(`
+//       <!DOCTYPE html>
+//       <html lang="en">
+//         <head>
+//           <meta charset="UTF-8">
+//           <meta property="og:title" content="${title}" />
+//           <meta property="og:description" content="${description}" />
+//           <meta property="og:image" content="${image}" />
+//           <meta property="og:type" content="article" />
+//           <meta property="og:url" content="https://news-server-49oh.onrender.com/api/news/article-preview/${article._id}" />
+//           <title>${title}</title>
+//         </head>
+//         <body>
+//           <script>
+//             window.location.href = 'https://news-client-pearl.vercel.app/article-reading-view?id=${article._id}';
+//           </script>
+//         </body>
+//       </html>
+//     `);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).send('Server error');
+//   }
+// };
 
 
-// For JSON (API)
-export const getArticlePreviewJSON = async (req, res) => {
-  const { id } = req.params;
+// // For JSON (API)
+// export const getArticlePreviewJSON = async (req, res) => {
+//   const { id } = req.params;
 
+//   try {
+//     const article = await News.findById(id);
+//     if (!article) return res.status(404).json({ message: 'Article not found' });
+
+//     res.json({
+//       id: article._id,
+//       title: article.title,
+//       description: article.content?.slice(0, 100),
+//       image: article.media?.[0],
+//       url: `https://news-client-pearl.vercel.app/article-reading-view?id=${id}`
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: 'Error loading article', error: err.message });
+//   }
+// };
+
+export const serveOGPreviewPage = async (req, res) => {
   try {
-    const article = await News.findById(id);
-    if (!article) return res.status(404).json({ message: 'Article not found' });
+    const newsId = req.params.id;
+    const news = await News.findById(newsId);
 
-    res.json({
-      id: article._id,
-      title: article.title,
-      description: article.content?.slice(0, 100),
-      image: article.media?.[0],
-      url: `https://news-client-pearl.vercel.app/article-reading-view?id=${id}`
-    });
+    if (!news) return res.status(404).send('News not found');
+
+    const siteUrl = `https://yourdomain.com/news/${news._id}`;
+    const ogImage = news.media?.[0] || 'https://yourdomain.com/default-image.jpg';
+
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${news.title}</title>
+          <meta property="og:title" content="${news.title}" />
+          <meta property="og:description" content="${news.content?.slice(0, 150)}..." />
+          <meta property="og:image" content="${ogImage}" />
+          <meta property="og:url" content="${siteUrl}" />
+          <meta property="og:type" content="article" />
+        </head>
+        <body>
+          <script>
+            window.location.href = "/news/${news._id}";
+          </script>
+        </body>
+      </html>
+    `);
   } catch (err) {
-    res.status(500).json({ message: 'Error loading article', error: err.message });
+    console.error('OG preview error:', err);
+    res.status(500).send('Internal Server Error');
   }
 };
