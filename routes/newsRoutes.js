@@ -18,7 +18,6 @@ import {
   getFilteredNews,
   getBreakingNews,
   searchNews,
-  serveOGPreviewPage
   // renderArticlePreview,
   // getArticlePreviewJSON
   // translateNews
@@ -47,7 +46,5 @@ router.delete('/reporter/:id', authenticate, deleteReporter);
 // router.post('/:id/translate', authenticate, translateNews);
 router.get('/search', searchNews);
 // router.get('/article-preview/:id', renderArticlePreview);
-// // JSON API version
 // router.get('/article-preview/:id/json', getArticlePreviewJSON);
-router.get('/share/:id', serveOGPreviewPage);
 export default router;

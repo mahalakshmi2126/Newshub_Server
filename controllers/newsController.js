@@ -423,38 +423,43 @@ export const searchNews = async (req, res) => {
 
 // // For share preview (HTML)
 // export const renderArticlePreview = async (req, res) => {
-//   try {
-//     const article = await News.findById(req.params.id);
-//     if (!article) return res.status(404).send('Article not found');
+//   try {
+//     const articleId = req.params.id;
+//     const article = await News.findById(articleId); // assuming mongoose model
 
-//     const image = article.media?.[0] || 'https://placehold.co/600x400?text=No+Image';
-//     const title = article.title || 'Untitled Article';
-//     const description = article.content?.substring(0, 150) || 'Read latest article on NewsHub.';
+//     if (!article) {
+//       return res.status(404).send('Article not found');
+//     }
 
-//     res.setHeader('Content-Type', 'text/html');
-//     res.send(`
-//       <!DOCTYPE html>
-//       <html lang="en">
-//         <head>
-//           <meta charset="UTF-8">
-//           <meta property="og:title" content="${title}" />
-//           <meta property="og:description" content="${description}" />
-//           <meta property="og:image" content="${image}" />
-//           <meta property="og:type" content="article" />
-//           <meta property="og:url" content="https://news-server-49oh.onrender.com/api/news/article-preview/${article._id}" />
-//           <title>${title}</title>
-//         </head>
-//         <body>
-//           <script>
-//             window.location.href = 'https://news-client-pearl.vercel.app/article-reading-view?id=${article._id}';
-//           </script>
-//         </body>
-//       </html>
-//     `);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send('Server error');
-//   }
+//     const imageUrl = article.media?.[0] || 'https://placehold.co/600x400?text=No+Image';
+
+//     res.send(`
+//       <!DOCTYPE html>
+//       <html lang="en">
+//       <head>
+//         <meta charset="UTF-8" />
+//         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+//         <!-- OG Meta Tags -->
+//         <meta property="og:title" content="${article.title}" />
+//         <meta property="og:description" content="${article.content?.slice(0, 100)}" />
+//         <meta property="og:image" content="${imageUrl}" />
+//         <meta property="og:url" content="https://news-client-pearl.vercel.app/article-reading-view?id=${article._id}" />
+//         <meta property="og:type" content="article" />
+//         <title>${article.title}</title>
+//       </head>
+//       <body>
+//         <h1>${article.title}</h1>
+//         <p>${article.content}</p>
+//         <img src="${imageUrl}" alt="${article.title}" style="max-width:100%;" />
+//         <p>Click to read full article: <a href="https://news-client-pearl.vercel.app/article-reading-view?id=${article._id}">View</a></p>
+//       </body>
+//       </html>
+//     `);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send('Something went wrong');
+//   }
 // };
 
 
@@ -477,40 +482,3 @@ export const searchNews = async (req, res) => {
 //     res.status(500).json({ message: 'Error loading article', error: err.message });
 //   }
 // };
-
-export const serveOGPreviewPage = async (req, res) => {
-  try {
-    const newsId = req.params.id;
-    const news = await News.findById(newsId);
-
-    if (!news) return res.status(404).send('News not found');
-
-   const siteUrl = `https://news-client-pearl.vercel.app/article-reading-view?id=${news._id}`;
-const ogImage = news.media?.[0] || 'https://yourdomain.com/default-image.jpg';
-
-res.send(`
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${news.title}</title>
-      <meta property="og:title" content="${news.title}" />
-      <meta property="og:description" content="${news.content?.slice(0, 150)}..." />
-      <meta property="og:image" content="${ogImage}" />
-      <meta property="og:url" content="${siteUrl}" />
-      <meta property="og:type" content="article" />
-    </head>
-    <body>
-      <script>
-        window.location.href = "${siteUrl}";
-      </script>
-    </body>
-  </html>
-`);
-
-  } catch (err) {
-    console.error('OG preview error:', err);
-    res.status(500).send('Internal Server Error');
-  }
-};
