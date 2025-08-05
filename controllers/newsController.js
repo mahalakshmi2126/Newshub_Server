@@ -485,29 +485,30 @@ export const serveOGPreviewPage = async (req, res) => {
 
     if (!news) return res.status(404).send('News not found');
 
-    const siteUrl = `https://yourdomain.com/news/${news._id}`;
-    const ogImage = news.media?.[0] || 'https://yourdomain.com/default-image.jpg';
+   const siteUrl = `https://news-client-pearl.vercel.app/article-reading-view?id=${news._id}`;
+const ogImage = news.media?.[0] || 'https://yourdomain.com/default-image.jpg';
 
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${news.title}</title>
-          <meta property="og:title" content="${news.title}" />
-          <meta property="og:description" content="${news.content?.slice(0, 150)}..." />
-          <meta property="og:image" content="${ogImage}" />
-          <meta property="og:url" content="${siteUrl}" />
-          <meta property="og:type" content="article" />
-        </head>
-        <body>
-          <script>
-            window.location.href = "/news/${news._id}";
-          </script>
-        </body>
-      </html>
-    `);
+res.send(`
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${news.title}</title>
+      <meta property="og:title" content="${news.title}" />
+      <meta property="og:description" content="${news.content?.slice(0, 150)}..." />
+      <meta property="og:image" content="${ogImage}" />
+      <meta property="og:url" content="${siteUrl}" />
+      <meta property="og:type" content="article" />
+    </head>
+    <body>
+      <script>
+        window.location.href = "${siteUrl}";
+      </script>
+    </body>
+  </html>
+`);
+
   } catch (err) {
     console.error('OG preview error:', err);
     res.status(500).send('Internal Server Error');
