@@ -8,14 +8,9 @@ const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: false });
 const rssFeeds = [
   { name: 'BBC Tamil', url: 'https://feeds.bbci.co.uk/tamil/rss.xml' },
   { name: 'NDTV', url: 'http://feeds.feedburner.com/ndtvnews-top-stories' },
-  // { name: 'The Hindu', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
-  // { name: 'India Today', url: 'https://www.indiatoday.in/rss/home' },
   { name: 'Times of India', url: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms' },
   { name: 'BBC News', url: 'http://feeds.bbci.co.uk/news/rss.xml' },
-  // { name: 'Google News India (EN)', url: 'https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en' },
-  // { name: 'Google News Tamil', url: 'https://news.google.com/rss?hl=ta&gl=IN&ceid=IN:ta' },
   { name: 'Business Standard', url: 'https://www.business-standard.com/rss/home_page_top_stories.rss' },
-  // { name: 'Moneycontrol', url: 'https://www.moneycontrol.com/rss/latestnews.xml' },
   { name: 'News18 India', url: 'https://www.news18.com/rss/india.xml' },
   { name: 'Reuters World News', url: 'http://feeds.reuters.com/Reuters/worldNews' },
   { name: 'India TV News', url: 'https://www.indiatvnews.com/rssnews/topstory.xml' },
@@ -30,58 +25,72 @@ const fetchTopNews = async (req, res) => {
         const response = await axios.get(feed.url, {
           responseType: 'text',
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/90.0.4430.212 Safari/537.36'
-          }
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/90.0.4430.212 Safari/537.36',
+          },
         });
 
         const parsed = await parser.parseStringPromise(response.data);
-
         const items = parsed?.rss?.channel?.item || [];
         const articles = Array.isArray(items) ? items : [items];
-
-        function extractImageFromDescription(description) {
-          if (!description || typeof description !== 'string') return null;
-          const match = description.match(/<img[^>]+src=["'](.*?)["']|src=(.*?)(?:\s|>)/i);
-          return match ? (match[1] || match[2] || null) : null;
-        }
 
         function getImage(item, channelImage = '') {
           return (
             item.enclosure?.url ||
-            item["media:content"]?.$.url ||
-            item["media:group"]?.["media:content"]?.$.url ||
-            item["media:thumbnail"]?.$.url ||
+            item['media:content']?.$.url ||
+            item['media:group']?.['media:content']?.$.url ||
+            item['media:thumbnail']?.$.url ||
             item.description?.match(/<img[^>]+src="([^">]+)"/)?.[1] ||
             channelImage ||
             'https://placehold.co/800x600?text=No+Image'
           );
         }
 
-        // allNews.push({
-        //   channel: feed.name,
-        //   articles: articles.slice(0, 5).map(item => ({
+        const mappedArticles = articles.slice(0, 5).map((item) => ({
+          title: item.title || 'No Title',
+          link: item.link,
+          pubDate: item.pubDate,
+          description: item.description || 'No Content',
+          image: getImage(item, feed.image?.url),
+          category: feed.name || 'general',
+          sourceUrl: item.link || '#',
+        }));
 
-        //     title: item.title,
-        //     link: item.link,
-        //     pubDate: item.pubDate,
-        //     description: item.description,
-        //     image: item["media:content"]?.$.url
-        //   }))
-        // });
+
+        // Save articles to the database
+        const savedArticles = await Promise.all(
+          mappedArticles.map(async (article) => {
+            const existingArticle = await { link: article.link };
+            if (!existingArticle) {
+              const newArticle = new News({
+                _id: uuidv4(), // Generate unique ID
+                title: article.title,
+                content: article.description,
+                media: [article.image],
+                category: article.category,
+                sourceUrl: article.sourceUrl,
+                isFromRSS: true, // Flag to identify RSS articles
+                views: 0,
+                comments: 0,
+                shares: 0,
+                readTime: Math.ceil((article.description?.split(/\s+/).length || 200) / 200) || 3,
+                createdAt: new Date(article.pubDate || Date.now()),
+              });
+              console.log("savedArticles",savedArticles);
+              
+              await newArticle.save();
+              return { ...article, id: newArticle._id };
+            }
+            return { ...article, id: existingArticle._id };
+          })
+        );
 
         allNews.push({
           channel: feed.name,
-          articles: articles.slice(0, 5).map(item => ({
-            title: item.title,
-            link: item.link,
-            pubDate: item.pubDate,
-            description: item.description,
-            image: getImage(item, feed.image?.url),
-          })),
-          image: getImage(articles[0], feed.image?.url)
+          articles: savedArticles,
         });
       } catch (err) {
-        console.error(`❌ Failed parsing RSS for ${feed.name}:`, err.message);
+        // console.error(`❌ ${feed.name}:`, err.message);
+        console.error(err);
       }
     }
 
@@ -184,54 +193,144 @@ const fetchMarketData = async (req, res) => {
   }
 };
 
+// const getLocationName = async (lat, lon) => {
+//   try {
+//     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_MAPS_API_KEY}`;
+//     const res = await axios.get(url);
+
+//     if (res.data.results.length > 0) {
+//       const components = res.data.results[0].address_components;
+
+//       const locality = components.find(c => c.types.includes("locality"))?.long_name;
+//       const sublocality = components.find(c => c.types.includes("sublocality"))?.long_name;
+//       const village = components.find(c => c.types.includes("administrative_area_level_4"))?.long_name;
+//       const district = components.find(c => c.types.includes("administrative_area_level_2"))?.long_name;
+
+//       return locality || sublocality || village || district || "Unknown location";
+//     }
+//     return "Unknown location";
+//   } catch (err) {
+//     console.error("Reverse geocode failed:", err.message);
+//     return "Unknown location";
+//   }
+// };
+
+// // Main Controller
+// const getWeatherByLocation = async (req, res) => {
+//   const { lat, lon } = req.body;
+
+//   if (!lat || !lon) {
+//     return res.status(400).json({ error: 'Latitude and longitude required' });
+//   }
+
+//   try {
+//     const locationName = await getLocationName(lat, lon);
+
+//     const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+//     const weatherRes = await axios.get(weatherUrl);
+
+//     const { temp } = weatherRes.data.main;
+//     const condition = weatherRes.data.weather[0].main;
+//     const icon = weatherRes.data.weather[0].icon;
+
+//     res.json({
+//       location: locationName,
+//       temperature: Math.round(temp),
+//       condition,
+//       iconUrl: `https://openweathermap.org/img/wn/${icon}@2x.png`
+//     });
+//   } catch (err) {
+//     console.error("Weather fetch error:", err.message);
+//     res.status(500).json({ error: 'Something went wrong' });
+//   }
+// };
+
+
 const fetchWeather = async (req, res) => {
   try {
     const { taluk, district, state } = req.query;
 
-    // Prioritize more specific location (taluk > district > state)
-    const location =
-      taluk?.trim() || district?.trim() || state?.trim() || 'Chennai';
+    const location = taluk?.trim() || district?.trim() || state?.trim() || 'Chennai';
 
-    const resp = await axios.get('https://api.openweathermap.org/data/2.5/weather', {
+    const weatherResp = await axios.get('https://api.openweathermap.org/data/2.5/weather', {
       params: {
         q: location,
         appid: process.env.OPENWEATHER_API_KEY,
-        units: 'metric'
-      }
+        units: 'metric',
+      },
     });
 
-    res.json(resp.data);
+    const weather = weatherResp.data;
+
+    res.json({
+      success: true,
+      location: {
+        city: weather.name,
+        state: state || '',
+        district: district || '',
+        taluk: taluk || '',
+        country: weather.sys.country,
+      },
+      weather: {
+        temp: weather.main.temp,
+        humidity: weather.main.humidity,
+        wind: weather.wind.speed,
+        condition: weather.weather[0].main,
+        description: weather.weather[0].description,
+        icon: `https://openweathermap.org/img/wn/${weather.weather[0].icon}@4x.png`,
+        sunrise: weather.sys.sunrise,
+        sunset: weather.sys.sunset,
+      },
+    });
   } catch (e) {
-    res.status(500).json({ message: 'Failed to fetch weather' });
+    console.error('❌ Weather Fetch Error:', e.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch weather' });
   }
 };
+
 
 const fetchLocationFromCoordinates = async (req, res) => {
   try {
     const { lat, lon } = req.query;
 
     if (!lat || !lon) {
-      return res.status(400).json({ error: 'Latitude and longitude are required' });
+      return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
     }
 
     const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
       params: {
         lat,
         lon,
-        format: 'json'
+        format: 'json',
       },
       headers: {
-        'User-Agent': 'NewsHub/1.0 (your_email@example.com)' // Replace with your email (important for OSM)
-      }
+        'User-Agent': 'NewsHub/1.0 (your_email@example.com)', // ✅ REQUIRED BY OSM
+      },
     });
+
+    const { address } = response.data;
+
+    const taluk = address.village || address.town || address.hamlet || '';
+    const district = address.county || address.suburb || '';
+    const state = address.state || '';
+    const city = address.city || address.town || address.village || '';
+    const country = address.country || '';
 
     res.json({
       success: true,
-      location: response.data,
+      location: {
+        city,
+        taluk,
+        district,
+        state,
+        country,
+        lat,
+        lon,
+      },
     });
   } catch (error) {
     console.error('❌ OpenStreetMap Error:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch location from OpenStreetMap' });
+    res.status(500).json({ success: false, message: 'Failed to fetch location from coordinates' });
   }
 };
 
@@ -241,5 +340,6 @@ export {
   fetchMarketData,
   fetchWeather,
   fetchTopNews,
-  fetchLocationFromCoordinates,
+  fetchLocationFromCoordinates
+  // getWeatherByLocation
 };

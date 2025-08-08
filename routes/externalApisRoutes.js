@@ -24,6 +24,7 @@ import {
   fetchMarketData,
   fetchWeather,
   fetchTopNews,
+  // getWeatherByLocation,
   fetchLocationFromCoordinates
   // getStoredData,
 } from '../controllers/externalApisController.js';
@@ -32,5 +33,6 @@ router.get('/market', fetchMarketData);
 router.get('/weather', fetchWeather);
 router.get('/top-news', fetchTopNews);
 router.get('/location', fetchLocationFromCoordinates);
+// router.post('/weather', getWeatherByLocation);
  
 export default router;
