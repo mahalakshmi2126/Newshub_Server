@@ -133,7 +133,7 @@ const userSchema = new mongoose.Schema({
   reporterFormSubmitted: { type: Boolean, default: false },
   bio: { type: String, default: '' },
   phone: { type: String, default: '' },
-  avatar: { type: String, default: '/assets/images/avatar-placeholder.jpg' },
+  avatar: { type: String, default: '/assets/images/no_image.png' },
   initials: { type: String, default: '' },
   appliedDate: { type: Date },
   stats: {
