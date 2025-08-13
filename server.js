@@ -14,6 +14,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import externalApisRoutes from './routes/externalApisRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import bookmarkRoutes from './routes/bookmarkRoutes.js';
+import notificationRoutes from "./routes/notificationRoutes.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -33,6 +34,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/external-apis', externalApisRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/bookmark', bookmarkRoutes);
+app.use('/api/notification', notificationRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

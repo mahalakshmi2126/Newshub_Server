@@ -22,17 +22,22 @@ import express from 'express';
 const router = express.Router();
 import {
   fetchMarketData,
-  fetchWeather,
+  // fetchWeather,
   fetchTopNews,
-  // getWeatherByLocation,
-  fetchLocationFromCoordinates
+  getWeatherByLocation,
+  // getLocationName,
+  // fetchLocationFromCoordinates
   // getStoredData,
 } from '../controllers/externalApisController.js';
 
 router.get('/market', fetchMarketData);
-router.get('/weather', fetchWeather);
+// router.get('/weather', fetchWeather);
 router.get('/top-news', fetchTopNews);
-router.get('/location', fetchLocationFromCoordinates);
+
+// router.get('/location',  getLocationName);
 // router.post('/weather', getWeatherByLocation);
+
+// router.get('/weather',  getLocationName);
+router.get('/weather', getWeatherByLocation);
  
 export default router;

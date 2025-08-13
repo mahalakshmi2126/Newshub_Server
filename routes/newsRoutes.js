@@ -18,9 +18,7 @@ import {
   getFilteredNews,
   getBreakingNews,
   searchNews,
-  // renderArticlePreview,
-  // getArticlePreviewJSON
-  // translateNews
+  translateNews
 } from '../controllers/newsController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 
@@ -43,8 +41,6 @@ router.patch('/reject/:userId', authenticate, rejectReporterRequest);
 router.get('/reporters', authenticate, getAllReporters);
 router.get('/pending-requests', authenticate, getPendingRequests);
 router.delete('/reporter/:id', authenticate, deleteReporter);
-// router.post('/:id/translate', authenticate, translateNews);
+router.post('/:id/translate', translateNews);
 router.get('/search', searchNews);
-// router.get('/article-preview/:id', renderArticlePreview);
-// router.get('/article-preview/:id/json', getArticlePreviewJSON);
 export default router;

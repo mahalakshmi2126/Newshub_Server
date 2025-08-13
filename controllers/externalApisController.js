@@ -3,6 +3,155 @@ import dotenv from 'dotenv';
 import xml2js from 'xml2js';
 dotenv.config();
 
+
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+
+
+console.log('Loaded API Key:', process.env.WEATHER_API_KEY);  
+
+
+
+
+// 1. Nominatim geocoding
+// Helper: Simplify detailed weather descriptions
+const simplifyWeatherDescription = (desc) => {
+  const d = desc.toLowerCase();
+  if (d.includes("rain") || d.includes("drizzle")) return "Rain";
+  if (d.includes("thunderstorm")) return "Thunderstorm";
+  if (d.includes("snow")) return "Snow";
+  if (d.includes("cloud")) return "Clouds";
+  if (d.includes("clear")) return "Clear";
+  if (d.includes("fog") || d.includes("mist") || d.includes("haze")) return "Fog";
+  return "Other";
+};
+
+// 1. Nominatim geocoding
+const getLatLonFromNominatim = async (location) => {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+    location
+  )}&format=json&limit=1`;
+
+  const response = await axios.get(url, {
+    headers: { "User-Agent": "YourAppName/1.0 (your.email@example.com)" },
+  });
+
+  if (response.data.length === 0) {
+    throw new Error("Location not found in Nominatim");
+  }
+
+  const { lat, lon, display_name } = response.data[0];
+  return { lat, lon, display_name };
+};
+
+// 2. Photon geocoding fallback
+const getLatLonFromPhoton = async (location) => {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(location)}&limit=1`;
+  const response = await axios.get(url);
+
+  if (!response.data.features.length) {
+    throw new Error("Location not found in Photon");
+  }
+
+  const feature = response.data.features[0];
+  const [lon, lat] = feature.geometry.coordinates;
+  const props = feature.properties;
+  const display_name =
+    props.name +
+    (props.city ? ", " + props.city : "") +
+    (props.state ? ", " + props.state : "");
+
+  return { lat, lon, display_name };
+};
+
+// 3. Get current weather by lat/lon from OpenWeatherMap
+const getWeatherFromLatLon = async (lat, lon) => {
+  const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+  const weatherResponse = await axios.get(weatherUrl);
+
+  return {
+    location: weatherResponse.data.name,
+    temperature: weatherResponse.data.main.temp,
+    description: simplifyWeatherDescription(weatherResponse.data.weather[0].description),
+    humidity: weatherResponse.data.main.humidity,
+    windSpeed: weatherResponse.data.wind.speed,
+  };
+};
+
+// 4. Get 5-day forecast (3-hour interval) and summarize daily
+const get5DayForecastFromLatLon = async (lat, lon) => {
+  const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+  const response = await axios.get(forecastUrl);
+
+  const list = response.data.list;
+
+  const days = {};
+
+  list.forEach((item) => {
+    const date = item.dt_txt.split(" ")[0];
+    if (!days[date]) {
+      days[date] = [];
+    }
+    days[date].push(item);
+  });
+
+  const forecast = Object.keys(days).map((date) => {
+    const dayData = days[date];
+    const temps = dayData.map((d) => d.main.temp);
+    const humidities = dayData.map((d) => d.main.humidity);
+    const descriptions = dayData.map((d) => d.weather[0].description);
+
+    // Get the most frequent description and simplify it
+    const description =
+      simplifyWeatherDescription(
+        descriptions.sort(
+          (a, b) =>
+            descriptions.filter((v) => v === a).length -
+            descriptions.filter((v) => v === b).length
+        ).pop() || ""
+      );
+
+    return {
+      date,
+      temp_min: Math.min(...temps),
+      temp_max: Math.max(...temps),
+      temp_avg: temps.reduce((a, b) => a + b, 0) / temps.length,
+      humidity_avg: humidities.reduce((a, b) => a + b, 0) / humidities.length,
+      description,
+    };
+  });
+
+  return forecast;
+};
+
+// 5. Main API handler
+const getWeatherByLocation = async (req, res) => {
+  const location = req.query.location;
+  if (!location) {
+    return res.status(400).json({ error: "Location query param is required" });
+  }
+
+  try {
+    let geoData;
+    try {
+      geoData = await getLatLonFromNominatim(location);
+    } catch {
+      geoData = await getLatLonFromPhoton(location);
+    }
+
+    const currentWeather = await getWeatherFromLatLon(geoData.lat, geoData.lon);
+    const forecast = await get5DayForecastFromLatLon(geoData.lat, geoData.lon);
+
+    return res.json({
+      location: geoData.display_name,
+      currentWeather,
+      forecast,
+    });
+  } catch (error) {
+    console.error("Error fetching weather:", error.message);
+    return res.status(404).json({ error: "Location not found or weather unavailable" });
+  }
+};
+
 const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: false });
 
 const rssFeeds = [
@@ -89,7 +238,7 @@ const fetchTopNews = async (req, res) => {
           articles: savedArticles,
         });
       } catch (err) {
-        // console.error(`❌ ${feed.name}:`, err.message);
+        // console.error(❌ ${feed.name}:, err.message);
         console.error(err);
       }
     }
@@ -193,153 +342,105 @@ const fetchMarketData = async (req, res) => {
   }
 };
 
-// const getLocationName = async (lat, lon) => {
+
+
+
+// const fetchWeather = async (req, res) => {
 //   try {
-//     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_MAPS_API_KEY}`;
-//     const res = await axios.get(url);
+//     const { taluk, district, state } = req.query;
 
-//     if (res.data.results.length > 0) {
-//       const components = res.data.results[0].address_components;
+//     const location = taluk?.trim() || district?.trim() || state?.trim() || 'Chennai';
 
-//       const locality = components.find(c => c.types.includes("locality"))?.long_name;
-//       const sublocality = components.find(c => c.types.includes("sublocality"))?.long_name;
-//       const village = components.find(c => c.types.includes("administrative_area_level_4"))?.long_name;
-//       const district = components.find(c => c.types.includes("administrative_area_level_2"))?.long_name;
+//     const weatherResp = await axios.get('https://api.openweathermap.org/data/2.5/weather', {
+//       params: {
+//         q: location,
+//         appid: process.env.OPENWEATHER_API_KEY,
+//         units: 'metric',
+//       },
+//     });
 
-//       return locality || sublocality || village || district || "Unknown location";
-//     }
-//     return "Unknown location";
-//   } catch (err) {
-//     console.error("Reverse geocode failed:", err.message);
-//     return "Unknown location";
-//   }
-// };
-
-// // Main Controller
-// const getWeatherByLocation = async (req, res) => {
-//   const { lat, lon } = req.body;
-
-//   if (!lat || !lon) {
-//     return res.status(400).json({ error: 'Latitude and longitude required' });
-//   }
-
-//   try {
-//     const locationName = await getLocationName(lat, lon);
-
-//     const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
-//     const weatherRes = await axios.get(weatherUrl);
-
-//     const { temp } = weatherRes.data.main;
-//     const condition = weatherRes.data.weather[0].main;
-//     const icon = weatherRes.data.weather[0].icon;
+//     const weather = weatherResp.data;
 
 //     res.json({
-//       location: locationName,
-//       temperature: Math.round(temp),
-//       condition,
-//       iconUrl: `https://openweathermap.org/img/wn/${icon}@2x.png`
+//       success: true,
+//       location: {
+//         city: weather.name,
+//         state: state || '',
+//         district: district || '',
+//         taluk: taluk || '',
+//         country: weather.sys.country,
+//       },
+//       weather: {
+//         temp: weather.main.temp,
+//         humidity: weather.main.humidity,
+//         wind: weather.wind.speed,
+//         condition: weather.weather[0].main,
+//         description: weather.weather[0].description,
+//         icon: https://openweathermap.org/img/wn/${weather.weather[0].icon}@4x.png,
+//         sunrise: weather.sys.sunrise,
+//         sunset: weather.sys.sunset,
+//       },
 //     });
-//   } catch (err) {
-//     console.error("Weather fetch error:", err.message);
-//     res.status(500).json({ error: 'Something went wrong' });
+//   } catch (e) {
+//     console.error('❌ Weather Fetch Error:', e.message);
+//     res.status(500).json({ success: false, message: 'Failed to fetch weather' });
 //   }
 // };
 
 
-const fetchWeather = async (req, res) => {
-  try {
-    const { taluk, district, state } = req.query;
+// const fetchLocationFromCoordinates = async (req, res) => {
+//   try {
+//     const { lat, lon } = req.query;
 
-    const location = taluk?.trim() || district?.trim() || state?.trim() || 'Chennai';
+//     if (!lat || !lon) {
+//       return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
+//     }
 
-    const weatherResp = await axios.get('https://api.openweathermap.org/data/2.5/weather', {
-      params: {
-        q: location,
-        appid: process.env.OPENWEATHER_API_KEY,
-        units: 'metric',
-      },
-    });
+//     const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+//       params: {
+//         lat,
+//         lon,
+//         format: 'json',
+//       },
+//       headers: {
+//         'User-Agent': 'NewsHub/1.0 (your_email@example.com)', // ✅ REQUIRED BY OSM
+//       },
+//     });
 
-    const weather = weatherResp.data;
+//     const { address } = response.data;
 
-    res.json({
-      success: true,
-      location: {
-        city: weather.name,
-        state: state || '',
-        district: district || '',
-        taluk: taluk || '',
-        country: weather.sys.country,
-      },
-      weather: {
-        temp: weather.main.temp,
-        humidity: weather.main.humidity,
-        wind: weather.wind.speed,
-        condition: weather.weather[0].main,
-        description: weather.weather[0].description,
-        icon: `https://openweathermap.org/img/wn/${weather.weather[0].icon}@4x.png`,
-        sunrise: weather.sys.sunrise,
-        sunset: weather.sys.sunset,
-      },
-    });
-  } catch (e) {
-    console.error('❌ Weather Fetch Error:', e.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch weather' });
-  }
-};
+//     const taluk = address.village || address.town || address.hamlet || '';
+//     const district = address.county || address.suburb || '';
+//     const state = address.state || '';
+//     const city = address.city || address.town || address.village || '';
+//     const country = address.country || '';
 
-
-const fetchLocationFromCoordinates = async (req, res) => {
-  try {
-    const { lat, lon } = req.query;
-
-    if (!lat || !lon) {
-      return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
-    }
-
-    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
-      params: {
-        lat,
-        lon,
-        format: 'json',
-      },
-      headers: {
-        'User-Agent': 'NewsHub/1.0 (your_email@example.com)', // ✅ REQUIRED BY OSM
-      },
-    });
-
-    const { address } = response.data;
-
-    const taluk = address.village || address.town || address.hamlet || '';
-    const district = address.county || address.suburb || '';
-    const state = address.state || '';
-    const city = address.city || address.town || address.village || '';
-    const country = address.country || '';
-
-    res.json({
-      success: true,
-      location: {
-        city,
-        taluk,
-        district,
-        state,
-        country,
-        lat,
-        lon,
-      },
-    });
-  } catch (error) {
-    console.error('❌ OpenStreetMap Error:', error.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch location from coordinates' });
-  }
-};
+//     res.json({
+//       success: true,
+//       location: {
+//         city,
+//         taluk,
+//         district,
+//         state,
+//         country,
+//         lat,
+//         lon,
+//       },
+//     });
+//   } catch (error) {
+//     console.error('❌ OpenStreetMap Error:', error.message);
+//     res.status(500).json({ success: false, message: 'Failed to fetch location from coordinates' });
+//   }
+// };
 
 
 
 export {
   fetchMarketData,
-  fetchWeather,
+  // fetchWeather,
+  getWeatherByLocation,
   fetchTopNews,
-  fetchLocationFromCoordinates
+  //  getLocationName,
+  // fetchLocationFromCoordinates
   // getWeatherByLocation
 };

@@ -2,6 +2,9 @@ import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { OAuth2Client } from "google-auth-library";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 import sendEmail from "../utils/sendEmail.js";
 
@@ -135,43 +138,48 @@ export const resetPassword = async (req, res) => {
 };
 
 export const googleLogin = async (req, res) => {
-  const { email, name, picture } = req.body; 
-
   try {
+    const { id_token } = req.body;
+    if (!id_token) {
+      return res.status(400).json({ success: false, message: "ID Token required" });
+    }
+
+    // Verify token with Google
+    const ticket = await client.verifyIdToken({
+      idToken: id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    const { email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Google account has no email" });
+    }
+
     let user = await User.findOne({ email });
 
     if (!user) {
+      const randomPassword = crypto.randomBytes(8).toString("hex");
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
       user = new User({
         name,
         email,
-        password: null,
+        password: hashedPassword,
+        originalPassword: randomPassword,
+        avatar: picture,
         role: "user",
-        isApproved: true,
-        avatar: picture || "/assets/images/no_image.png",
-        bio: "",
-        location: { state: "", district: "", taluk: "" },
-        initials:
-          name
-            ?.split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase() || "U",
+        isApproved: true, // optional
       });
+
       await user.save();
-    } else {
-      // ஏற்கனவே உள்ள userக்கு avatar இல்லை என்றால் அல்லது placeholder இருந்தால் picture-ஐ update செய்
-      if ((!user.avatar || user.avatar.includes("no_image.png")) && picture) {
-        user.avatar = picture;
-        await user.save();
-      }
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     res.json({
       success: true,
@@ -183,9 +191,6 @@ export const googleLogin = async (req, res) => {
         role: user.role,
         isApproved: user.isApproved,
         avatar: user.avatar,
-        bio: user.bio,
-        location: user.location,
-        initials: user.initials,
       },
     });
   } catch (err) {
@@ -226,7 +231,7 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// GET single user profile
+
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -239,7 +244,7 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// PUT update user profile
+
 export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -388,4 +393,4 @@ export const updateCurrentUser = async (req, res) => {
       .status(500)
       .json({ message: "Failed to update user", error: err.message });
   }
-};  
+};
